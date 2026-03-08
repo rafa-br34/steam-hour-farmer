@@ -10,7 +10,9 @@
 		"node": ">=16.0.0"
 	},
 	"scripts": {
-		"start": "node index.js"
+		"start": "node index.js",
+		"fmt:check": "prettier --check .",
+		"fmt": "prettier --write ."
 	},
 	"repository": "github:tacheometry/steam-hour-farmer",
 	"keywords": [
@@ -30,6 +32,7 @@
 		"steam-user": "^5.0.8"
 	},
 	"devDependencies": {
-		"@types/steam-totp": "^2.1.0"
+		"@types/steam-totp": "^2.1.0",
+		"prettier": "^3.8.1"
 	}
 }

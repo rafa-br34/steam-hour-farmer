@@ -8,8 +8,8 @@ const TOTP = require("steam-totp");
 const { LoginSession, EAuthTokenPlatformType } = require("steam-session");
 const qrcode = require("qrcode-terminal");
 
-const MACHINE_NAME = "steam-hour-farmer"
-const MACHINE_TYPE = Steam.EOSType.Windows10
+const MACHINE_NAME = "steam-hour-farmer";
+const MACHINE_TYPE = Steam.EOSType.Windows10;
 const DATA_DIRECTORY = "SteamData";
 const MIN_REQUEST_TIME = 60 * 1000;
 const LOG_ON_INTERVAL = 10 * 60 * 1000;
@@ -31,7 +31,6 @@ const consoleQuestion = util
 	.promisify(readlineInterface.question)
 	.bind(readlineInterface);
 
-
 require("dotenv").config();
 
 let { ACCOUNT_NAME, PASSWORD, PERSONA, GAMES, SHARED_SECRET } = process.env;
@@ -47,7 +46,7 @@ let { ACCOUNT_NAME, PASSWORD, PERSONA, GAMES, SHARED_SECRET } = process.env;
 
 	function assertVarAnd(names) {
 		const values = names.map(checkVar).reduce((a, b) => a == b);
-	
+
 		values || panic(`Either use ${names.join(", ")} or none of them.`);
 	}
 
@@ -66,11 +65,10 @@ const SHOULD_PLAY = GAMES.split(",").map((game) => {
 if (SHOULD_PLAY.length === 0)
 	console.warn("Could not find any games to play. Maybe this is a mistake?");
 
-
 const getTOTP = TOTP.generateAuthCode.bind(this, SHARED_SECRET);
 
 async function loginAttemptViaQrCode() {
-	const session = new LoginSession(EAuthTokenPlatformType.SteamClient)
+	const session = new LoginSession(EAuthTokenPlatformType.SteamClient);
 
 	const promise = new Promise((resolve, reject) => {
 		session.on("remoteInteraction", () => {
@@ -78,34 +76,33 @@ async function loginAttemptViaQrCode() {
 		});
 
 		session.on("error", (error) => {
-			reject(error)
+			reject(error);
 		});
 
 		session.on("timeout", () => {
-			reject(new Error("Timed out while waiting for QR code approval."))
+			reject(new Error("Timed out while waiting for QR code approval."));
 		});
 
 		session.on("authenticated", () => {
-			resolve(session.refreshToken)
-		})
-	})
+			resolve(session.refreshToken);
+		});
+	});
 
 	const challenge = await session.startWithQR();
 
 	console.log("Please scan the following QR code in your mobile app:");
 	qrcode.generate(challenge.qrChallengeUrl, { small: true });
 
-	return await promise
+	return await promise;
 }
 
 async function loginViaQrCode() {
 	while (true) {
-		let result
+		let result;
 		try {
 			result = await loginAttemptViaQrCode();
-		}
-		catch (error) {
-			console.log(error.message)
+		} catch (error) {
+			console.log(error.message);
 		}
 
 		if (result) {
@@ -132,7 +129,7 @@ async function logOn() {
 	if (Date.now() - lastLogOnTime <= MIN_REQUEST_TIME) return;
 	if (Date.now() < onlyLogInAfter) return;
 
-	let authData
+	let authData;
 
 	if (ACCOUNT_NAME && PASSWORD) {
 		console.log("Logging in via username and password...");
@@ -140,12 +137,11 @@ async function logOn() {
 			accountName: ACCOUNT_NAME,
 			password: PASSWORD,
 		};
-	}
-	else {
+	} else {
 		console.log("Logging in via QR code...");
 		authData = {
-			refreshToken: await loginViaQrCode()
-		}
+			refreshToken: await loginViaQrCode(),
+		};
 	}
 
 	steamUser.logOn({
@@ -156,7 +152,7 @@ async function logOn() {
 		autoRelogin: true,
 	});
 	lastLogOnTime = Date.now();
-};
+}
 
 function refreshGames() {
 	if (!authenticated) return;
@@ -165,8 +161,7 @@ function refreshGames() {
 
 	if (playingOnOtherSession) {
 		notification = "Farming is paused.";
-	}
-	else {
+	} else {
 		if (Date.now() - lastGameRefreshTime <= MIN_REQUEST_TIME) return;
 		steamUser.gamesPlayed(SHOULD_PLAY);
 		notification = "Farming...";
@@ -177,19 +172,18 @@ function refreshGames() {
 		currentNotification = notification;
 		console.log(notification);
 	}
-};
+}
 
 steamUser.on("steamGuard", async (domain, callback) => {
-	let result
+	let result;
 
 	if (SHARED_SECRET) {
 		result = getTOTP();
-	}
-	else {
+	} else {
 		result = await consoleQuestion(
 			`Enter Steam Guard code` +
-			(domain ? ` for email at ${domain}` : "") +
-			": "
+				(domain ? ` for email at ${domain}` : "") +
+				": ",
 		);
 	}
 
@@ -203,7 +197,9 @@ steamUser.on("playingState", (blocked, app) => {
 
 steamUser.on("loggedOn", () => {
 	authenticated = true;
-	console.log(`Successfully logged in to Steam with ID ${steamUser.steamID} (${steamUser.vanityURL})`);
+	console.log(
+		`Successfully logged in to Steam with ID ${steamUser.steamID} (${steamUser.vanityURL})`,
+	);
 	if (PERSONA !== undefined) steamUser.setPersona(PERSONA);
 	refreshGames();
 });
@@ -213,7 +209,7 @@ steamUser.on("error", (e) => {
 		case Steam.EResult.LoggedInElsewhere: {
 			authenticated = false;
 			console.log(
-				"Got kicked by other Steam session. Will log in shortly..."
+				"Got kicked by other Steam session. Will log in shortly...",
 			);
 			logOn();
 			return;
@@ -222,7 +218,7 @@ steamUser.on("error", (e) => {
 			authenticated = false;
 			onlyLogInAfter = Date.now() + 31 * 60 * 1000;
 			console.log(
-				"Got rate limited by Steam. Will try logging in again in 30 minutes."
+				"Got rate limited by Steam. Will try logging in again in 30 minutes.",
 			);
 			return;
 		}
@@ -232,6 +228,6 @@ steamUser.on("error", (e) => {
 	}
 });
 
-logOn()
+logOn();
 setInterval(logOn, LOG_ON_INTERVAL);
 setInterval(refreshGames, REFRESH_GAMES_INTERVAL);
