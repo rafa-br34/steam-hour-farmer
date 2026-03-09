@@ -16,7 +16,7 @@ const DATA_DIRECTORY = "SteamData";
 const MIN_REQUEST_TIME = 60 * 1000;
 const LOG_ON_INTERVAL = 10 * 60 * 1000;
 const REFRESH_GAMES_INTERVAL = 5 * 60 * 1000;
-const REFRESH_TOKEN_PATH = path.join(DATA_DIRECTORY, "refreshToken.txt")
+const REFRESH_TOKEN_PATH = path.join(DATA_DIRECTORY, "refreshToken.txt");
 
 console.log("Documentation: https://github.com/tacheometry/steam-hour-farmer");
 
@@ -126,7 +126,7 @@ let authenticated = false;
 let lastGameRefreshTime = new Date(0);
 let lastLogOnTime = new Date(0);
 let onlyLogInAfter = new Date(0);
-let ignoreErrors = false
+let ignoreErrors = false;
 
 async function logOn() {
 	if (authenticated) return;
@@ -135,41 +135,41 @@ async function logOn() {
 
 	if (fs.existsSync(REFRESH_TOKEN_PATH)) {
 		console.log("Logging in via persistent refresh token...");
-		
+
 		const promise = new Promise((resolve, _reject) => {
 			function onLoggedOn() {
-				cleanup()
+				cleanup();
 				resolve(true);
-			};
+			}
 
 			function onError(error) {
-				console.log(`Got error: ${error.message}`)
-				cleanup()
+				console.log(`Got error: ${error.message}`);
+				cleanup();
 				resolve(false);
-			};
+			}
 
 			function cleanup() {
-				ignoreErrors = false
+				ignoreErrors = false;
 				steamUser.removeListener("loggedOn", onLoggedOn);
 				steamUser.removeListener("error", onError);
-			};
+			}
 
-			ignoreErrors = true
+			ignoreErrors = true;
 			steamUser.once("loggedOn", onLoggedOn);
 			steamUser.once("error", onError);
-		})
+		});
 
 		steamUser.logOn({
 			refreshToken: fs.readFileSync(REFRESH_TOKEN_PATH, "utf8"),
 		});
 
-		const result = await promise
+		const result = await promise;
 		if (result) {
 			lastLogOnTime = Date.now();
 			return;
 		}
 
-		console.log("Failed to log in via persistent refresh token.")
+		console.log("Failed to log in via persistent refresh token.");
 	}
 
 	let authData;
@@ -182,9 +182,9 @@ async function logOn() {
 		};
 	} else {
 		console.log("Logging in via QR code...");
-		const refreshToken = await loginViaQrCode()
+		const refreshToken = await loginViaQrCode();
 
-		fs.writeFileSync(REFRESH_TOKEN_PATH, refreshToken)
+		fs.writeFileSync(REFRESH_TOKEN_PATH, refreshToken);
 
 		authData = {
 			refreshToken: refreshToken,
