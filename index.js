@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 "use strict";
 
-const readline = require("readline");
-const util = require("util");
+const readline = require("node:readline");
+const util = require("node:util");
+const path = require("node:path");
+const fs = require("node:fs");
 const Steam = require("steam-user");
 const TOTP = require("steam-totp");
 const { LoginSession, EAuthTokenPlatformType } = require("steam-session");
@@ -14,11 +16,12 @@ const DATA_DIRECTORY = "SteamData";
 const MIN_REQUEST_TIME = 60 * 1000;
 const LOG_ON_INTERVAL = 10 * 60 * 1000;
 const REFRESH_GAMES_INTERVAL = 5 * 60 * 1000;
+const REFRESH_TOKEN_PATH = path.join(DATA_DIRECTORY, "refreshToken.txt")
 
 console.log("Documentation: https://github.com/tacheometry/steam-hour-farmer");
 
 function panic(reason) {
-	console.error(reason);
+	console.error("PANIC:", reason);
 	process.exit(1);
 }
 
@@ -123,11 +126,51 @@ let authenticated = false;
 let lastGameRefreshTime = new Date(0);
 let lastLogOnTime = new Date(0);
 let onlyLogInAfter = new Date(0);
+let ignoreErrors = false
 
 async function logOn() {
 	if (authenticated) return;
 	if (Date.now() - lastLogOnTime <= MIN_REQUEST_TIME) return;
 	if (Date.now() < onlyLogInAfter) return;
+
+	if (fs.existsSync(REFRESH_TOKEN_PATH)) {
+		console.log("Logging in via persistent refresh token...");
+		
+		const promise = new Promise((resolve, _reject) => {
+			function onLoggedOn() {
+				cleanup()
+				resolve(true);
+			};
+
+			function onError(error) {
+				console.log(`Got error: ${error.message}`)
+				cleanup()
+				resolve(false);
+			};
+
+			function cleanup() {
+				ignoreErrors = false
+				steamUser.removeListener("loggedOn", onLoggedOn);
+				steamUser.removeListener("error", onError);
+			};
+
+			ignoreErrors = true
+			steamUser.once("loggedOn", onLoggedOn);
+			steamUser.once("error", onError);
+		})
+
+		steamUser.logOn({
+			refreshToken: fs.readFileSync(REFRESH_TOKEN_PATH, "utf8"),
+		});
+
+		const result = await promise
+		if (result) {
+			lastLogOnTime = Date.now();
+			return;
+		}
+
+		console.log("Failed to log in via persistent refresh token.")
+	}
 
 	let authData;
 
@@ -139,8 +182,12 @@ async function logOn() {
 		};
 	} else {
 		console.log("Logging in via QR code...");
+		const refreshToken = await loginViaQrCode()
+
+		fs.writeFileSync(REFRESH_TOKEN_PATH, refreshToken)
+
 		authData = {
-			refreshToken: await loginViaQrCode(),
+			refreshToken: refreshToken,
 		};
 	}
 
@@ -151,6 +198,7 @@ async function logOn() {
 		twoFactorCode: SHARED_SECRET ? getTOTP : undefined,
 		autoRelogin: true,
 	});
+
 	lastLogOnTime = Date.now();
 }
 
@@ -173,6 +221,11 @@ function refreshGames() {
 		console.log(notification);
 	}
 }
+
+steamUser.on("refreshToken", (token) => {
+	console.log("Got a new refresh token.");
+	fs.writeFileSync(REFRESH_TOKEN_PATH, token);
+});
 
 steamUser.on("steamGuard", async (domain, callback) => {
 	let result;
@@ -205,6 +258,10 @@ steamUser.on("loggedOn", () => {
 });
 
 steamUser.on("error", (e) => {
+	if (ignoreErrors) {
+		return;
+	}
+
 	switch (e.eresult) {
 		case Steam.EResult.LoggedInElsewhere: {
 			authenticated = false;
